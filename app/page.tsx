@@ -1,52 +1,107 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
-import "./../app/app.css";
-import { Amplify } from "aws-amplify";
-import outputs from "@/amplify_outputs.json";
-import "@aws-amplify/ui-react/styles.css";
+import { useState } from "react";
+import "./app.css";
 
-Amplify.configure(outputs);
+type User = {
+  username: string;
+  role: "admin" | "client";
+};
 
-const client = generateClient<Schema>();
+export default function HomePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
 
-export default function App() {
-  const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
+  const allProducts = ["Patika", "Këpuca", "Sandale", "Çizme"];
 
-  function listTodos() {
-    client.models.Todo.observeQuery().subscribe({
-      next: (data) => setTodos([...data.items]),
-    });
-  }
+  const handleLogin = (username: string, password: string) => {
+    // Thjeshtësi për testim — pa backend
+    if (username === "admin" && password === "1234") {
+      setUser({ username, role: "admin" });
+    } else if (
+      ["klient1", "klient2", "klient3"].includes(username) &&
+      password === "1234"
+    ) {
+      setUser({ username, role: "client" });
+    } else {
+      alert("Gabim në kredenciale!");
+    }
+  };
 
-  useEffect(() => {
-    listTodos();
-  }, []);
+  const handleProductSelect = (product: string) => {
+    setSelectedProducts((prev) =>
+      prev.includes(product)
+        ? prev.filter((p) => p !== product)
+        : [...prev, product]
+    );
+  };
 
-  function createTodo() {
-    client.models.Todo.create({
-      content: window.prompt("Todo content"),
-    });
-  }
+  const handleLogout = () => {
+    setUser(null);
+    setSelectedProducts([]);
+  };
 
-  return (
-    <main>
-      <h1>My todos</h1>
-      <button onClick={createTodo}>+ new</button>
-      <ul>
-        {todos.map((todo) => (
-          <li key={todo.id}>{todo.content}</li>
-        ))}
-      </ul>
-      <div>
-        🥳 App successfully hosted. Try creating a new todo.
-        <br />
-        <a href="https://docs.amplify.aws/nextjs/start/quickstart/nextjs-app-router-client-components/">
-          Review next steps of this tutorial.
-        </a>
+  // ------------------- UI -----------------------
+  if (!user) {
+    return (
+      <div className="login-container">
+        <h2>Kyçu në sistem</h2>
+        <input id="username" placeholder="Përdoruesi" />
+        <input id="password" placeholder="Fjalëkalimi" type="password" />
+        <button
+          onClick={() =>
+            handleLogin(
+              (document.getElementById("username") as HTMLInputElement).value,
+              (document.getElementById("password") as HTMLInputElement).value
+            )
+          }
+        >
+          Kyçu
+        </button>
       </div>
-    </main>
+    );
+  }
+
+  if (user.role === "client") {
+    return (
+      <div className="client-panel">
+        <h2>Përshëndetje, {user.username} 👋</h2>
+        <p>Zgjidh produktet që dëshiron të porosisësh:</p>
+
+        <div className="products">
+          {allProducts.map((product) => (
+            <button
+              key={product}
+              className={selectedProducts.includes(product) ? "selected" : ""}
+              onClick={() => handleProductSelect(product)}
+            >
+              {product}
+            </button>
+          ))}
+        </div>
+
+        <h3>Porosia jote:</h3>
+        <ul>
+          {selectedProducts.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+
+        <button onClick={handleLogout}>Dil</button>
+      </div>
+    );
+  }
+
+  // ADMIN PANEL
+  return (
+    <div className="admin-panel">
+      <h2>Admin Panel – {user.username}</h2>
+      <p>Këtu do të shfaqen porositë e klientëve.</p>
+      <p>
+        (Në këtë version, porositë nuk ruhen ende – do ta lidhim me AWS DynamoDB
+        në hapin tjetër 🔥)
+      </p>
+      <button onClick={handleLogout}>Dil</button>
+    </div>
   );
 }
