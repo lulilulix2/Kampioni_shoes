@@ -1,107 +1,90 @@
 "use client";
 
-import { useState } from "react";
-import "./app.css";
+import { useState, useEffect } from "react";
+import { Amplify } from "aws-amplify";
+import { API } from "@aws-amplify/api";
+import { graphqlOperation } from "@aws-amplify/api-graphql";
+import awsExports from "../src/aws-exports";
+import { createOrder } from "../src/graphql/mutations";
+import { listOrders } from "../src/graphql/queries";
 
-type User = {
-  username: string;
-  role: "admin" | "client";
-};
 
-export default function HomePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+Amplify.configure(awsExports);
 
-  const allProducts = ["Patika", "Këpuca", "Sandale", "Çizme"];
+export default function Home() {
+  const [orderName, setOrderName] = useState("");
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (username: string, password: string) => {
-    // Thjeshtësi për testim — pa backend
-    if (username === "admin" && password === "1234") {
-      setUser({ username, role: "admin" });
-    } else if (
-      ["klient1", "klient2", "klient3"].includes(username) &&
-      password === "1234"
-    ) {
-      setUser({ username, role: "client" });
-    } else {
-      alert("Gabim në kredenciale!");
+  // Funksioni për të krijuar porosi të re
+  const handleCreateOrder = async () => {
+    if (!orderName.trim()) return;
+
+    try {
+      await API.graphql(
+        graphqlOperation(createOrder, { input: { clientName: orderName } })
+      );
+      setOrderName("");
+      fetchOrders(); // rifreskon listën pas shtimit
+    } catch (error) {
+      console.error("Gabim gjatë krijimit të porosisë:", error);
     }
   };
 
-  const handleProductSelect = (product: string) => {
-    setSelectedProducts((prev) =>
-      prev.includes(product)
-        ? prev.filter((p) => p !== product)
-        : [...prev, product]
-    );
+  // Funksioni për të marrë të gjitha porositë
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const result: any = await API.graphql(graphqlOperation(listOrders));
+      setOrders(result.data.listOrders.items || []);
+    } catch (error) {
+      console.error("Gabim gjatë marrjes së porosive:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setSelectedProducts([]);
-  };
+  // Marr listën automatikisht kur ngarkohet faqja
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
-  // ------------------- UI -----------------------
-  if (!user) {
-    return (
-      <div className="login-container">
-        <h2>Kyçu në sistem</h2>
-        <input id="username" placeholder="Përdoruesi" />
-        <input id="password" placeholder="Fjalëkalimi" type="password" />
+  return (
+    <main className="flex flex-col items-center justify-center min-h-screen p-8">
+      <h1 className="text-3xl font-bold mb-4">Shto Porosi</h1>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Emri i porosisë"
+          value={orderName}
+          onChange={(e) => setOrderName(e.target.value)}
+          className="border p-2 rounded w-64"
+        />
         <button
-          onClick={() =>
-            handleLogin(
-              (document.getElementById("username") as HTMLInputElement).value,
-              (document.getElementById("password") as HTMLInputElement).value
-            )
-          }
+          onClick={handleCreateOrder}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
         >
-          Kyçu
+          Shto
         </button>
       </div>
-    );
-  }
 
-  if (user.role === "client") {
-    return (
-      <div className="client-panel">
-        <h2>Përshëndetje, {user.username} 👋</h2>
-        <p>Zgjidh produktet që dëshiron të porosisësh:</p>
-
-        <div className="products">
-          {allProducts.map((product) => (
-            <button
-              key={product}
-              className={selectedProducts.includes(product) ? "selected" : ""}
-              onClick={() => handleProductSelect(product)}
-            >
-              {product}
-            </button>
-          ))}
-        </div>
-
-        <h3>Porosia jote:</h3>
-        <ul>
-          {selectedProducts.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
+      <h2 className="text-xl font-semibold mb-2">Lista e porosive</h2>
+      {loading ? (
+        <p>Duke marrë porositë...</p>
+      ) : (
+        <ul className="w-full max-w-md">
+          {orders.length === 0 ? (
+            <li className="text-gray-500 italic">Nuk ka porosi.</li>
+          ) : (
+            orders.map((order) => (
+              <li key={order.id} className="border-b py-1">
+                {order.clientName}
+              </li>
+            ))
+          )}
         </ul>
-
-        <button onClick={handleLogout}>Dil</button>
-      </div>
-    );
-  }
-
-  // ADMIN PANEL
-  return (
-    <div className="admin-panel">
-      <h2>Admin Panel – {user.username}</h2>
-      <p>Këtu do të shfaqen porositë e klientëve.</p>
-      <p>
-        (Në këtë version, porositë nuk ruhen ende – do ta lidhim me AWS DynamoDB
-        në hapin tjetër 🔥)
-      </p>
-      <button onClick={handleLogout}>Dil</button>
-    </div>
+      )}
+    </main>
   );
 }
