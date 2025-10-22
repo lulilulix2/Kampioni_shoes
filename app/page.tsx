@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { Amplify } from "aws-amplify";
-import { generateClient } from "aws-amplify/api";
+import { generateClient, GraphQLResult } from "aws-amplify/api";
 import awsExports from "../src/aws-exports";
 import { createOrder } from "../src/graphql/mutations";
 import { listOrders } from "../src/graphql/queries";
@@ -12,31 +12,46 @@ Amplify.configure(awsExports);
 // Krijo klientin e ri për API
 const client = generateClient();
 
+// Tipi për një porosi
+interface Order {
+  id: string;
+  clientName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default function Home() {
   const [orderName, setOrderName] = useState("");
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleCreateOrder = async () => {
-    if (!orderName) return;
+    if (!orderName.trim()) return;
 
     try {
       await client.graphql({
         query: createOrder,
         variables: { input: { clientName: orderName } },
       });
+
       setOrderName("");
-      fetchOrders();
+      await fetchOrders();
     } catch (error) {
-      console.error("Gabim gjatë krijimit të porosisë:", error);
+      console.error("Gabim gjatë krijimit të porosisë:", JSON.stringify(error, null, 2));
     }
   };
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const result = await client.graphql({ query: listOrders });
-      setOrders(result.data.listOrders.items);
+
+      const result = (await client.graphql({
+        query: listOrders,
+      })) as GraphQLResult<{ listOrders: { items: Order[] } }>;
+
+      if (result.data?.listOrders?.items) {
+        setOrders(result.data.listOrders.items);
+      }
     } catch (error) {
       console.error("Gabim gjatë marrjes së porosive:", error);
     } finally {
@@ -57,7 +72,7 @@ export default function Home() {
           type="text"
           placeholder="Emri i porosisë"
           value={orderName}
-          onChange={(e) => setOrderName(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setOrderName(e.target.value)}
           className="border p-2 rounded"
         />
         <button
