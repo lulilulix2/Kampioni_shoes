@@ -2,41 +2,41 @@
 
 import { useState, useEffect } from "react";
 import { Amplify } from "aws-amplify";
-import { API } from "@aws-amplify/api";
-import { graphqlOperation } from "@aws-amplify/api-graphql";
+import { generateClient } from "aws-amplify/api";
 import awsExports from "../src/aws-exports";
 import { createOrder } from "../src/graphql/mutations";
 import { listOrders } from "../src/graphql/queries";
 
-
 Amplify.configure(awsExports);
+
+// Krijo klientin e ri për API
+const client = generateClient();
 
 export default function Home() {
   const [orderName, setOrderName] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Funksioni për të krijuar porosi të re
   const handleCreateOrder = async () => {
-    if (!orderName.trim()) return;
+    if (!orderName) return;
 
     try {
-      await API.graphql(
-        graphqlOperation(createOrder, { input: { clientName: orderName } })
-      );
+      await client.graphql({
+        query: createOrder,
+        variables: { input: { clientName: orderName } },
+      });
       setOrderName("");
-      fetchOrders(); // rifreskon listën pas shtimit
+      fetchOrders();
     } catch (error) {
       console.error("Gabim gjatë krijimit të porosisë:", error);
     }
   };
 
-  // Funksioni për të marrë të gjitha porositë
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const result: any = await API.graphql(graphqlOperation(listOrders));
-      setOrders(result.data.listOrders.items || []);
+      const result = await client.graphql({ query: listOrders });
+      setOrders(result.data.listOrders.items);
     } catch (error) {
       console.error("Gabim gjatë marrjes së porosive:", error);
     } finally {
@@ -44,7 +44,6 @@ export default function Home() {
     }
   };
 
-  // Marr listën automatikisht kur ngarkohet faqja
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -59,11 +58,11 @@ export default function Home() {
           placeholder="Emri i porosisë"
           value={orderName}
           onChange={(e) => setOrderName(e.target.value)}
-          className="border p-2 rounded w-64"
+          className="border p-2 rounded"
         />
         <button
           onClick={handleCreateOrder}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+          className="bg-blue-500 text-white px-4 py-2 rounded"
         >
           Shto
         </button>
@@ -74,15 +73,11 @@ export default function Home() {
         <p>Duke marrë porositë...</p>
       ) : (
         <ul className="w-full max-w-md">
-          {orders.length === 0 ? (
-            <li className="text-gray-500 italic">Nuk ka porosi.</li>
-          ) : (
-            orders.map((order) => (
-              <li key={order.id} className="border-b py-1">
-                {order.clientName}
-              </li>
-            ))
-          )}
+          {orders.map((order) => (
+            <li key={order.id} className="border-b py-1">
+              {order.clientName}
+            </li>
+          ))}
         </ul>
       )}
     </main>
